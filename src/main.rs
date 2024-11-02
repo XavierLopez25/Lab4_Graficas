@@ -8,6 +8,7 @@ mod fragment;
 mod framebuffer;
 mod obj;
 mod shaders;
+mod skybox;
 mod triangle;
 mod vertex;
 
@@ -16,6 +17,7 @@ use fastnoise_lite::{FastNoiseLite, FractalType, NoiseType};
 use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{fragment_shader, vertex_shader};
+use skybox::Skybox;
 use triangle::triangle;
 use vertex::Vertex;
 
@@ -209,7 +211,7 @@ fn main() {
     window.set_position(500, 500);
     window.update();
 
-    framebuffer.set_background_color(0x333355);
+    framebuffer.set_background_color(0x000000);
 
     // camera parameters
     let mut camera = Camera::new(
@@ -225,6 +227,8 @@ fn main() {
     let obj = Obj::load("assets/models/sphere.obj").expect("Failed to load obj");
     let vertex_arrays = obj.get_vertex_array();
     let mut time = 0;
+
+    let skybox = Skybox::new(5000);
 
     let noise = create_noise();
     let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
@@ -249,6 +253,8 @@ fn main() {
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
+
+        skybox.render(&mut framebuffer, &uniforms, camera.eye);
 
         uniforms.model_matrix = create_model_matrix(translation, scale, rotation);
         uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
