@@ -204,3 +204,105 @@ fn lava_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     color * fragment.intensity
 }
+
+pub fn shader_earth(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    // Posición y normal del fragmento
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+
+    // Iluminación
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    // Parámetros ajustables
+    let land_threshold = 0.35;
+    let land_exponent = 0.8;
+    let cloud_threshold = 0.6;
+    let cloud_exponent = 2.0;
+
+    // Ruido para continentes y océanos
+    let noise_value = uniforms
+        .noise
+        .get_noise_3d(position.x, position.y, position.z);
+    let normalized_value = (noise_value + 1.0) * 0.5;
+
+    // Cálculo de land_factor
+    let base = ((normalized_value - land_threshold) / (1.0 - land_threshold)).clamp(0.0, 1.0);
+    let land_factor = base.powf(land_exponent);
+
+    // Definir colores para agua y tierra
+    let water_color = Color::from_float(0.0, 0.2, 0.6);
+    let land_color = Color::from_float(0.2, 0.7, 0.2);
+
+    // Interpolación entre agua y tierra
+    let base_color = water_color.lerp(&land_color, land_factor);
+
+    // Generar nubes
+    let cloud_noise_value = uniforms.noise.get_noise_3d(
+        position.x * 20.0 + 5000.0,
+        position.y * 20.0 + 5000.0,
+        position.z * 20.0 + 5000.0,
+    );
+    let cloud_normalized = (cloud_noise_value + 1.0) * 0.5;
+
+    // Cálculo de cloud_opacity
+    let cloud_base =
+        ((cloud_normalized - cloud_threshold) / (1.0 - cloud_threshold)).clamp(0.0, 1.0);
+    let cloud_opacity = cloud_base.powf(cloud_exponent);
+
+    // Color de las nubes
+    let cloud_color = Color::from_float(1.0, 1.0, 1.0);
+
+    // Mezclar nubes con el color base
+    let base_color_with_clouds = base_color.lerp(&cloud_color, cloud_opacity);
+
+    // Aplicar iluminación
+    let lit_color = base_color_with_clouds * diffuse_intensity;
+    let ambient_intensity = 0.3;
+    let ambient_color = base_color_with_clouds * ambient_intensity;
+    let final_lit_color = ambient_color + lit_color;
+
+    final_lit_color.clamp()
+}
+
+pub fn shader_jupiter(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    // Posición y normal del fragmento
+    let position = Vec3::new(
+        fragment.vertex_position.x,
+        fragment.vertex_position.y,
+        fragment.depth,
+    );
+    let normal = fragment.normal.normalize();
+
+    // Iluminación
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    // Ruido para bandas atmosféricas
+    let noise_value = uniforms
+        .noise
+        .get_noise_3d(position.x, position.y, position.z);
+    let normalized_value = (noise_value + 1.0) * 0.5;
+
+    // Definir colores para las bandas de Júpiter
+    let color1 = Color::from_float(0.804, 0.522, 0.247); // Marrón claro
+    let color2 = Color::from_float(0.870, 0.721, 0.529); // Beige
+
+    // Usar `lerp` para interpolar entre los colores de las bandas
+    let base_color = color1.lerp(&color2, normalized_value);
+
+    // Aplicar iluminación difusa al color base
+    let lit_color = base_color * diffuse_intensity;
+
+    // Añadir un término ambiental
+    let ambient_intensity = 0.1;
+    let ambient_color = base_color * ambient_intensity;
+
+    // Combinar los componentes ambiental y difuso
+    let final_color = ambient_color + lit_color;
+
+    // Asegurar que los valores de color estén en el rango válido
+    final_color.clamp()
+}

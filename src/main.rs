@@ -13,10 +13,12 @@ mod triangle;
 mod vertex;
 
 use camera::Camera;
+use color::Color;
 use fastnoise_lite::{FastNoiseLite, FractalType, NoiseType};
+use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
-use shaders::{fragment_shader, vertex_shader};
+use shaders::{fragment_shader, shader_earth, shader_jupiter, vertex_shader};
 use skybox::Skybox;
 use triangle::triangle;
 use vertex::Vertex;
@@ -28,6 +30,36 @@ pub struct Uniforms {
     viewport_matrix: Mat4,
     time: u32,
     noise: FastNoiseLite,
+}
+
+fn create_default_noise() -> FastNoiseLite {
+    FastNoiseLite::with_seed(0)
+}
+
+fn create_noise1(noise_type: &str) -> FastNoiseLite {
+    match noise_type {
+        "earth" => create_earth_noise(),
+        "jupiter" => create_jupiter_noise(),
+        _ => create_earth_noise(),
+    }
+}
+
+fn create_earth_noise() -> FastNoiseLite {
+    let mut noise = FastNoiseLite::with_seed(42);
+    noise.set_noise_type(Some(NoiseType::Perlin));
+    noise.set_frequency(Some(5.0));
+    noise.set_fractal_type(Some(FractalType::FBm));
+    noise.set_fractal_octaves(Some(6));
+    noise
+}
+
+fn create_jupiter_noise() -> FastNoiseLite {
+    let mut noise = FastNoiseLite::with_seed(1337);
+    noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    noise.set_frequency(Some(5.0));
+    noise.set_fractal_type(Some(FractalType::FBm));
+    noise.set_fractal_octaves(Some(3));
+    noise
 }
 
 fn create_noise() -> FastNoiseLite {
@@ -153,7 +185,12 @@ fn create_viewport_matrix(width: f32, height: f32) -> Mat4 {
     )
 }
 
-fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex]) {
+fn render(
+    framebuffer: &mut Framebuffer,
+    uniforms: &Uniforms,
+    vertex_array: &[Vertex],
+    shader_fn: fn(&Fragment, &Uniforms) -> Color,
+) {
     // Vertex Shader Stage
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
     for vertex in vertex_array {
@@ -184,8 +221,8 @@ fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Ve
         let x = fragment.position.x as usize;
         let y = fragment.position.y as usize;
         if x < framebuffer.width && y < framebuffer.height {
-            // Apply fragment shader
-            let shaded_color = fragment_shader(&fragment, &uniforms);
+            // Aplicar el shader específico
+            let shaded_color = shader_fn(&fragment, &uniforms);
             let color = shaded_color.to_hex();
             framebuffer.set_current_color(color);
             framebuffer.point(x, y, fragment.depth);
@@ -195,13 +232,13 @@ fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Ve
 
 fn main() {
     let window_width = 800;
-    let window_height = 600;
+    let window_height = 800;
     let framebuffer_width = 800;
-    let framebuffer_height = 600;
+    let framebuffer_height = 800;
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     let mut window = Window::new(
-        "Rust Graphics - Renderer Example",
+        "Sistema Solar - Tierra y Júpiter",
         window_width,
         window_height,
         WindowOptions::default(),
@@ -213,35 +250,39 @@ fn main() {
 
     framebuffer.set_background_color(0x000000);
 
-    // camera parameters
+    // Parámetros de la cámara
     let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 5.0),
+        Vec3::new(0.0, 0.0, 15.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
 
-    // model position
-    let translation = Vec3::new(0.0, 0.0, 0.0);
-    let rotation = Vec3::new(0.0, 0.0, 0.0);
-    let scale = 1.0f32;
+    // Cargar el modelo de esfera
     let obj = Obj::load("assets/models/sphere.obj").expect("Failed to load obj");
-    let vertex_arrays = obj.get_vertex_array();
-    let mut time = 0;
 
+    // Configuraciones de los planetas
+    // Tierra
+    let translation_earth = Vec3::new(-4.0, 0.0, 0.0);
+    let rotation_earth = Vec3::new(0.0, 0.0, 0.0);
+    let scale_earth = 1.0f32;
+    let noise_earth = create_noise1("earth");
+    let vertex_array_earth = obj.get_vertex_array();
+
+    // Júpiter
+    let translation_jupiter = Vec3::new(4.0, 0.0, 0.0);
+    let rotation_jupiter = Vec3::new(0.0, 0.0, 0.0);
+    let scale_jupiter = 2.0f32;
+    let noise_jupiter = create_noise1("jupiter");
+    let vertex_array_jupiter = obj.get_vertex_array();
+
+    // Skybox
     let skybox = Skybox::new(5000);
 
-    let noise = create_noise();
     let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
     let viewport_matrix =
         create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
-    let mut uniforms = Uniforms {
-        model_matrix: Mat4::identity(),
-        view_matrix: Mat4::identity(),
-        projection_matrix,
-        viewport_matrix,
-        time: 0,
-        noise,
-    };
+
+    let mut time = 0;
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
@@ -254,13 +295,52 @@ fn main() {
 
         framebuffer.clear();
 
-        skybox.render(&mut framebuffer, &uniforms, camera.eye);
+        // Renderizar el Skybox
+        let uniforms_skybox = Uniforms {
+            model_matrix: Mat4::identity(),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noise: create_default_noise(),
+        };
+        skybox.render(&mut framebuffer, &uniforms_skybox, camera.eye);
 
-        uniforms.model_matrix = create_model_matrix(translation, scale, rotation);
-        uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-        uniforms.time = time;
-        framebuffer.set_current_color(0xFFDDDD);
-        render(&mut framebuffer, &uniforms, &vertex_arrays);
+        // Uniforms de la Tierra
+        let uniforms_earth = Uniforms {
+            model_matrix: create_model_matrix(translation_earth, scale_earth, rotation_earth),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noise: create_earth_noise(),
+        };
+
+        // Uniforms de Júpiter
+        let uniforms_jupiter = Uniforms {
+            model_matrix: create_model_matrix(translation_jupiter, scale_jupiter, rotation_jupiter),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noise: create_jupiter_noise(),
+        };
+
+        // Renderizar la Tierra
+        render(
+            &mut framebuffer,
+            &uniforms_earth,
+            &vertex_array_earth,
+            shader_earth,
+        );
+
+        // Renderizar Júpiter
+        render(
+            &mut framebuffer,
+            &uniforms_jupiter,
+            &vertex_array_jupiter,
+            shader_jupiter,
+        );
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
