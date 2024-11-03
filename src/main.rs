@@ -19,7 +19,7 @@ use fastnoise_lite::{FastNoiseLite, FractalType, NoiseType};
 use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
-use shaders::{shader_earth, shader_jupiter, vertex_shader};
+use shaders::{shader_earth, shader_jupiter, shader_moon, vertex_shader};
 use skybox::Skybox;
 use triangle::triangle;
 use vertex::Vertex;
@@ -38,21 +38,50 @@ fn create_default_noise() -> FastNoiseLite {
 }
 
 fn create_earth_noises() -> Vec<FastNoiseLite> {
-    // Ruido para la tierra
-    let mut land_noise = FastNoiseLite::with_seed(42);
-    land_noise.set_noise_type(Some(NoiseType::Perlin));
-    land_noise.set_frequency(Some(5.0));
-    land_noise.set_fractal_type(Some(FractalType::FBm));
-    land_noise.set_fractal_octaves(Some(6));
+    // Ruido base para el terreno (montañas)
+    let mut mountain_noise = FastNoiseLite::with_seed(42);
+    mountain_noise.set_noise_type(Some(NoiseType::Perlin));
+    mountain_noise.set_frequency(Some(1.0)); // Frecuencia baja para grandes características
+    mountain_noise.set_fractal_type(Some(FractalType::FBm));
+    mountain_noise.set_fractal_octaves(Some(5));
 
-    // Ruido para las nubes
-    let mut cloud_noise = FastNoiseLite::with_seed(1337);
+    // Ruido secundario para colinas
+    let mut hill_noise = FastNoiseLite::with_seed(1337);
+    hill_noise.set_noise_type(Some(NoiseType::Perlin));
+    hill_noise.set_frequency(Some(2.5)); // Frecuencia media
+    hill_noise.set_fractal_type(Some(FractalType::FBm));
+    hill_noise.set_fractal_octaves(Some(4));
+
+    // Ruido terciario para detalles finos
+    let mut detail_noise = FastNoiseLite::with_seed(2021);
+    detail_noise.set_noise_type(Some(NoiseType::Perlin));
+    detail_noise.set_frequency(Some(5.0)); // Frecuencia alta para detalles finos
+    detail_noise.set_fractal_type(Some(FractalType::FBm));
+    detail_noise.set_fractal_octaves(Some(3));
+
+    // Ruido para las nubes (sin cambios)
+    let mut cloud_noise = FastNoiseLite::with_seed(40);
     cloud_noise.set_noise_type(Some(NoiseType::Perlin));
-    cloud_noise.set_frequency(Some(5.0)); // Mayor frecuencia para más detalle
+    cloud_noise.set_frequency(Some(5.0));
     cloud_noise.set_fractal_type(Some(FractalType::FBm));
     cloud_noise.set_fractal_octaves(Some(1));
 
-    vec![land_noise, cloud_noise]
+    // Atmosfera de la Tierra
+    let mut atmosphere_noise = FastNoiseLite::with_seed(40);
+    atmosphere_noise.set_noise_type(Some(NoiseType::Perlin));
+    atmosphere_noise.set_fractal_type(Some(FractalType::FBm));
+    atmosphere_noise.set_fractal_octaves(Some(2)); // Menos octavas para menos detalles
+    atmosphere_noise.set_fractal_lacunarity(Some(3.0));
+    atmosphere_noise.set_fractal_gain(Some(0.5));
+    atmosphere_noise.set_frequency(Some(0.01));
+
+    vec![
+        mountain_noise,
+        hill_noise,
+        detail_noise,
+        cloud_noise,
+        atmosphere_noise,
+    ]
 }
 
 fn create_jupiter_noise() -> FastNoiseLite {
@@ -62,6 +91,31 @@ fn create_jupiter_noise() -> FastNoiseLite {
     noise.set_fractal_type(Some(FractalType::FBm));
     noise.set_fractal_octaves(Some(3));
     noise
+}
+
+fn create_moon_noises() -> Vec<FastNoiseLite> {
+    // Ruido base para las características grandes
+    let mut noise1 = FastNoiseLite::with_seed(345);
+    noise1.set_noise_type(Some(NoiseType::Perlin));
+    noise1.set_frequency(Some(1.0)); // Frecuencia baja para manchas grandes
+    noise1.set_fractal_type(Some(FractalType::FBm));
+    noise1.set_fractal_octaves(Some(4));
+
+    // Ruido secundario para detalles adicionales
+    let mut noise2 = FastNoiseLite::with_seed(678);
+    noise2.set_noise_type(Some(NoiseType::Perlin));
+    noise2.set_frequency(Some(5.0)); // Frecuencia media
+    noise2.set_fractal_type(Some(FractalType::FBm));
+    noise2.set_fractal_octaves(Some(3));
+
+    // Ruido terciario para detalles finos
+    let mut noise3 = FastNoiseLite::with_seed(910);
+    noise3.set_noise_type(Some(NoiseType::Perlin));
+    noise3.set_frequency(Some(10.0)); // Frecuencia alta para detalles finos
+    noise3.set_fractal_type(Some(FractalType::FBm));
+    noise3.set_fractal_octaves(Some(2));
+
+    vec![noise1, noise2, noise3]
 }
 
 fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
@@ -229,6 +283,12 @@ fn main() {
     let noise_jupiter = create_jupiter_noise(); // FastNoiseLite
     let vertex_array_jupiter = obj.get_vertex_array();
 
+    // Luna
+    let distance_moon = 1.0; // Distancia desde la Tierra
+    let scale_moon = 0.50f32; // Tamaño relativo de la luna respecto a la Tierra
+    let moon_noises = create_moon_noises();
+    let vertex_array_moon = obj.get_vertex_array();
+
     // Skybox
     let skybox = Skybox::new(5000);
 
@@ -248,6 +308,22 @@ fn main() {
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
+
+        // Calcular la posición de la luna orbitando alrededor de la Tierra
+        let moon_orbit_speed = 0.005; // Velocidad de órbita de la luna
+        let angle = 0.025 * time * moon_orbit_speed;
+
+        // Calcular la posición de la luna orbitando alrededor de la Tierra
+        let moon_orbit_speed = 0.005; // Velocidad de órbita de la luna
+        let angle = 0.025 * time * moon_orbit_speed;
+
+        let moon_translation = Vec3::new(
+            translation_earth.x + distance_moon * angle.cos(),
+            translation_earth.y,
+            translation_earth.z + distance_moon * angle.sin(),
+        );
+
+        let rotation_moon = Vec3::new(0.0, angle, 0.0);
 
         // Renderizar el Skybox
         let default_noise = create_default_noise();
@@ -282,12 +358,30 @@ fn main() {
             noises: vec![&noise_jupiter],
         };
 
+        let moon_noise_refs: Vec<&FastNoiseLite> = moon_noises.iter().collect();
+        let uniforms_moon = Uniforms {
+            model_matrix: create_model_matrix(moon_translation, scale_moon, rotation_moon),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: moon_noise_refs,
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
             &uniforms_earth,
             &vertex_array_earth,
             shader_earth,
+        );
+
+        // Renderizar la Luna
+        render(
+            &mut framebuffer,
+            &uniforms_moon,
+            &vertex_array_moon,
+            shader_moon,
         );
 
         // Renderizar Júpiter

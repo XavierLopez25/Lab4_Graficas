@@ -218,33 +218,68 @@ pub fn shader_earth(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let cloud_threshold = 0.7;
 
     // Colores base
-    let water_color = Color::from_float(0.0, 0.1, 0.4); // Darker, more realistic water color
-    let land_color = Color::from_float(0.3, 0.5, 0.2); // More muted, natural land color
-    let cloud_color: Color = Color::from_float(0.6, 0.6, 0.6);
+    let water_color = Color::from_float(0.0, 0.1, 0.4); // Color del agua
+    let low_land_color = Color::from_float(0.2, 0.5, 0.2); // Tierras bajas
+    let high_land_color = Color::from_float(0.5, 0.4, 0.3); // Montañas
+    let snow_color = Color::from_float(1.0, 1.0, 1.0); // Nieve
+    let cloud_color = Color::from_float(0.8, 0.8, 0.8); // Nubes
+    let atmosphere_color = Color::from_float(0.0, 0.4, 0.8); // Azul de la atmósfera
 
     // Velocidades de movimiento
     let land_speed = 0.01;
     let cloud_speed = 0.03;
 
     // Obtener referencias a los ruidos
-    let land_noise = uniforms.noises[0];
-    let cloud_noise = uniforms.noises[1];
+    let mountain_noise = uniforms.noises[0];
+    let hill_noise = uniforms.noises[1];
+    let detail_noise = uniforms.noises[2];
+    let cloud_noise = uniforms.noises[3];
+    let atmosphere_noise = uniforms.noises[4];
 
-    // Ruido para la tierra (movimiento lento)
-    let land_noise_value = land_noise.get_noise_3d(
+    // Ruido combinado para el terreno
+    let mountain_value = mountain_noise.get_noise_3d(
+        position.x * 0.5 + time * land_speed,
+        position.y * 0.5 + time * land_speed,
+        position.z * 0.5 + time * land_speed,
+    );
+
+    let hill_value = hill_noise.get_noise_3d(
         position.x + time * land_speed,
         position.y + time * land_speed,
         position.z + time * land_speed,
     );
-    let land_normalized = (land_noise_value + 1.0) * 0.5;
+
+    let detail_value = detail_noise.get_noise_3d(
+        position.x * 2.0 + time * land_speed,
+        position.y * 2.0 + time * land_speed,
+        position.z * 2.0 + time * land_speed,
+    );
+
+    // Combinar los valores de ruido para el terreno
+    let terrain_value =
+        (mountain_value * 0.5 + hill_value * 0.3 + detail_value * 0.2).clamp(-1.0, 1.0);
+
+    let terrain_normalized = (terrain_value + 1.0) * 0.5;
 
     // Determinar si el fragmento es tierra o agua
-    let is_land = land_normalized > land_threshold;
+    let is_land = terrain_normalized > land_threshold;
 
-    // Color base según sea tierra o agua
-    let mut base_color = if is_land { land_color } else { water_color };
+    // Color base según la altura del terreno
+    let mut base_color = if is_land {
+        // Interpolar entre tierras bajas y altas
+        let land_height =
+            ((terrain_normalized - land_threshold) / (1.0 - land_threshold)).clamp(0.0, 1.0);
 
-    // Ruido para las nubes (movimiento más lento)
+        // Agregar nieve en las montañas altas
+        let land_color = low_land_color.lerp(&high_land_color, land_height);
+        let with_snow = land_color.lerp(&snow_color, land_height.powf(3.0));
+
+        with_snow
+    } else {
+        water_color
+    };
+
+    // Ruido para las nubes
     let cloud_noise_value = cloud_noise.get_noise_3d(
         position.x + time * cloud_speed,
         position.y + time * cloud_speed,
@@ -259,12 +294,33 @@ pub fn shader_earth(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     // Mezclar las nubes con el color base
     base_color = base_color.lerp(&cloud_color, cloud_opacity);
 
-    // Aplicar iluminación
+    // Aplicar iluminación al color base (antes de agregar la atmósfera)
     let lit_color = base_color * diffuse_intensity;
     let ambient_intensity = 0.3;
     let ambient_color = base_color * ambient_intensity;
-    let final_color = ambient_color + lit_color;
+    let mut final_color = ambient_color + lit_color;
 
+    // Calcular el efecto de la atmósfera
+    let atmosphere_radius = 1.05; // Radio de la atmósfera (un poco más grande que el radio de la Tierra)
+    let distance_from_center = position.magnitude();
+    let atmosphere_factor =
+        ((distance_from_center - 1.0) / (atmosphere_radius - 1.0)).clamp(0.0, 1.0);
+
+    // Obtener el valor de ruido para la atmósfera
+    let atmosphere_noise_value = atmosphere_noise.get_noise_3d(
+        position.x * 10.0 + time * 0.005,
+        position.y * 10.0 + time * 0.005,
+        position.z * 10.0 + time * 0.005,
+    );
+    let atmosphere_normalized = (atmosphere_noise_value + 2.5) * 0.5;
+
+    // Calcular la opacidad de la atmósfera
+    let atmosphere_opacity = atmosphere_factor * atmosphere_normalized;
+
+    // Aplicar el efecto de la atmósfera sobre el color final
+    final_color = final_color.lerp(&atmosphere_color, atmosphere_opacity);
+
+    // Asegurar que los valores de color estén en el rango válido
     final_color.clamp()
 }
 
@@ -294,6 +350,70 @@ pub fn shader_jupiter(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     // Añadir un término ambiental
     let ambient_intensity = 0.1;
+    let ambient_color = base_color * ambient_intensity;
+
+    // Combinar los componentes ambiental y difuso
+    let final_color = ambient_color + lit_color;
+
+    // Asegurar que los valores de color estén en el rango válido
+    final_color.clamp()
+}
+
+pub fn shader_moon(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    // Posición y normal del fragmento
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+
+    // Iluminación
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    // Obtener referencias a los ruidos
+    let noise1 = uniforms.noises[0];
+    let noise2 = uniforms.noises[1];
+    let noise3 = uniforms.noises[2];
+
+    // Escalar las coordenadas para ajustar el tamaño de las manchas
+    let scale_factor_large = 0.5; // Escala para manchas grandes
+    let scale_factor_medium = 2.0; // Escala para manchas medianas
+    let scale_factor_small = 5.0; // Escala para detalles finos
+
+    // Obtener los valores de ruido
+    let noise_value1 = noise1.get_noise_3d(
+        position.x * scale_factor_large,
+        position.y * scale_factor_large,
+        position.z * scale_factor_large,
+    );
+    let noise_value2 = noise2.get_noise_3d(
+        position.x * scale_factor_medium,
+        position.y * scale_factor_medium,
+        position.z * scale_factor_medium,
+    );
+    let noise_value3 = noise3.get_noise_3d(
+        position.x * scale_factor_small,
+        position.y * scale_factor_small,
+        position.z * scale_factor_small,
+    );
+
+    // Combinar los valores de ruido
+    let combined_noise =
+        (noise_value1 * 0.6 + noise_value2 * 0.3 + noise_value3 * 0.1).clamp(-1.0, 1.0);
+
+    let normalized_value = (combined_noise + 1.0) * 0.5;
+
+    // Definir colores para las partes claras y oscuras de la luna
+    let light_gray = Color::from_float(0.9, 0.9, 0.9);
+    let dark_gray = Color::from_float(0.001, 0.001, 0.001);
+
+    // Interpolar entre los colores basado en el valor de ruido
+    let base_color = dark_gray.lerp(&light_gray, normalized_value);
+
+    // Aplicar iluminación difusa
+    let lit_color = base_color * diffuse_intensity;
+
+    // Añadir un término ambiental
+    let ambient_intensity = 0.2;
     let ambient_color = base_color * ambient_intensity;
 
     // Combinar los componentes ambiental y difuso
