@@ -87,9 +87,7 @@ fn dalmata_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let x = fragment.vertex_position.x;
     let y = fragment.vertex_position.y;
 
-    let noise_value = uniforms
-        .noise
-        .get_noise_2d((x + ox) * zoom, (y + oy) * zoom);
+    let noise_value = uniforms.noises[0].get_noise_2d((x + ox) * zoom, (y + oy) * zoom);
 
     let spot_threshold = 0.5;
     let spot_color = Color::new(255, 255, 255); // White
@@ -112,9 +110,7 @@ fn cloud_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let y = fragment.vertex_position.y;
     let t = uniforms.time as f32 * 0.5;
 
-    let noise_value = uniforms
-        .noise
-        .get_noise_2d(x * zoom + ox + t, y * zoom + oy);
+    let noise_value = uniforms.noises[0].get_noise_2d(x * zoom + ox + t, y * zoom + oy);
 
     // Define cloud threshold and colors
     let cloud_threshold = 0.5; // Adjust this value to change cloud density
@@ -139,8 +135,7 @@ fn cellular_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let y = fragment.vertex_position.y;
 
     // Use a cellular noise function to create the plant cell pattern
-    let cell_noise_value = uniforms
-        .noise
+    let cell_noise_value = uniforms.noises[0]
         .get_noise_2d(x * zoom + ox, y * zoom + oy)
         .abs();
 
@@ -187,12 +182,12 @@ fn lava_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     // Apply noise to coordinates with subtle pulsating on z-axis
     let zoom = 1000.0; // Constant zoom factor
-    let noise_value1 = uniforms.noise.get_noise_3d(
+    let noise_value1 = uniforms.noises[0].get_noise_3d(
         position.x * zoom,
         position.y * zoom,
         (position.z + pulsate) * zoom,
     );
-    let noise_value2 = uniforms.noise.get_noise_3d(
+    let noise_value2 = uniforms.noises[0].get_noise_3d(
         (position.x + 1000.0) * zoom,
         (position.y + 1000.0) * zoom,
         (position.z + 1000.0 + pulsate) * zoom,
@@ -215,64 +210,67 @@ pub fn shader_earth(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let light_dir = (light_pos - position).normalize();
     let diffuse_intensity = normal.dot(&light_dir).max(0.0);
 
-    // Parámetros ajustables
-    let land_threshold = 0.35;
-    let land_exponent = 0.8;
-    let cloud_threshold = 0.6;
-    let cloud_exponent = 2.0;
+    // Variable de tiempo para animación
+    let time = uniforms.time * 0.0001;
 
-    // Ruido para continentes y océanos
-    let noise_value = uniforms
-        .noise
-        .get_noise_3d(position.x, position.y, position.z);
-    let normalized_value = (noise_value + 1.0) * 0.5;
+    // Parámetros de umbral
+    let land_threshold = 0.5;
+    let cloud_threshold = 0.7;
 
-    // Cálculo de land_factor
-    let base = ((normalized_value - land_threshold) / (1.0 - land_threshold)).clamp(0.0, 1.0);
-    let land_factor = base.powf(land_exponent);
+    // Colores base
+    let water_color = Color::from_float(0.0, 0.1, 0.4); // Darker, more realistic water color
+    let land_color = Color::from_float(0.3, 0.5, 0.2); // More muted, natural land color
+    let cloud_color: Color = Color::from_float(0.6, 0.6, 0.6);
 
-    // Definir colores para agua y tierra
-    let water_color = Color::from_float(0.0, 0.2, 0.6);
-    let land_color = Color::from_float(0.2, 0.7, 0.2);
+    // Velocidades de movimiento
+    let land_speed = 0.01;
+    let cloud_speed = 0.03;
 
-    // Interpolación entre agua y tierra
-    let base_color = water_color.lerp(&land_color, land_factor);
+    // Obtener referencias a los ruidos
+    let land_noise = uniforms.noises[0];
+    let cloud_noise = uniforms.noises[1];
 
-    // Generar nubes
-    let cloud_noise_value = uniforms.noise.get_noise_3d(
-        position.x * 20.0 + 5000.0,
-        position.y * 20.0 + 5000.0,
-        position.z * 20.0 + 5000.0,
+    // Ruido para la tierra (movimiento lento)
+    let land_noise_value = land_noise.get_noise_3d(
+        position.x + time * land_speed,
+        position.y + time * land_speed,
+        position.z + time * land_speed,
     );
-    let cloud_normalized = (cloud_noise_value + 1.0) * 0.5;
+    let land_normalized = (land_noise_value + 1.0) * 0.5;
 
-    // Cálculo de cloud_opacity
-    let cloud_base =
+    // Determinar si el fragmento es tierra o agua
+    let is_land = land_normalized > land_threshold;
+
+    // Color base según sea tierra o agua
+    let mut base_color = if is_land { land_color } else { water_color };
+
+    // Ruido para las nubes (movimiento más lento)
+    let cloud_noise_value = cloud_noise.get_noise_3d(
+        position.x + time * cloud_speed,
+        position.y + time * cloud_speed,
+        position.z + time * cloud_speed,
+    );
+    let cloud_normalized = (cloud_noise_value + 1.5) * 0.5;
+
+    // Opacidad de las nubes
+    let cloud_opacity =
         ((cloud_normalized - cloud_threshold) / (1.0 - cloud_threshold)).clamp(0.0, 1.0);
-    let cloud_opacity = cloud_base.powf(cloud_exponent);
 
-    // Color de las nubes
-    let cloud_color = Color::from_float(1.0, 1.0, 1.0);
-
-    // Mezclar nubes con el color base
-    let base_color_with_clouds = base_color.lerp(&cloud_color, cloud_opacity);
+    // Mezclar las nubes con el color base
+    base_color = base_color.lerp(&cloud_color, cloud_opacity);
 
     // Aplicar iluminación
-    let lit_color = base_color_with_clouds * diffuse_intensity;
+    let lit_color = base_color * diffuse_intensity;
     let ambient_intensity = 0.3;
-    let ambient_color = base_color_with_clouds * ambient_intensity;
-    let final_lit_color = ambient_color + lit_color;
+    let ambient_color = base_color * ambient_intensity;
+    let final_color = ambient_color + lit_color;
 
-    final_lit_color.clamp()
+    final_color.clamp()
 }
 
 pub fn shader_jupiter(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     // Posición y normal del fragmento
-    let position = Vec3::new(
-        fragment.vertex_position.x,
-        fragment.vertex_position.y,
-        fragment.depth,
-    );
+    let position = fragment.vertex_position;
     let normal = fragment.normal.normalize();
 
     // Iluminación
@@ -281,9 +279,7 @@ pub fn shader_jupiter(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let diffuse_intensity = normal.dot(&light_dir).max(0.0);
 
     // Ruido para bandas atmosféricas
-    let noise_value = uniforms
-        .noise
-        .get_noise_3d(position.x, position.y, position.z);
+    let noise_value = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
     let normalized_value = (noise_value + 1.0) * 0.5;
 
     // Definir colores para las bandas de Júpiter

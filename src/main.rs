@@ -7,6 +7,7 @@ mod color;
 mod fragment;
 mod framebuffer;
 mod obj;
+mod planet;
 mod shaders;
 mod skybox;
 mod triangle;
@@ -18,39 +19,40 @@ use fastnoise_lite::{FastNoiseLite, FractalType, NoiseType};
 use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
-use shaders::{fragment_shader, shader_earth, shader_jupiter, vertex_shader};
+use shaders::{shader_earth, shader_jupiter, vertex_shader};
 use skybox::Skybox;
 use triangle::triangle;
 use vertex::Vertex;
 
-pub struct Uniforms {
-    model_matrix: Mat4,
-    view_matrix: Mat4,
-    projection_matrix: Mat4,
-    viewport_matrix: Mat4,
-    time: u32,
-    noise: FastNoiseLite,
+pub struct Uniforms<'a> {
+    pub model_matrix: Mat4,
+    pub view_matrix: Mat4,
+    pub projection_matrix: Mat4,
+    pub viewport_matrix: Mat4,
+    pub time: f32,
+    pub noises: Vec<&'a FastNoiseLite>,
 }
 
 fn create_default_noise() -> FastNoiseLite {
     FastNoiseLite::with_seed(0)
 }
 
-fn create_noise1(noise_type: &str) -> FastNoiseLite {
-    match noise_type {
-        "earth" => create_earth_noise(),
-        "jupiter" => create_jupiter_noise(),
-        _ => create_earth_noise(),
-    }
-}
+fn create_earth_noises() -> Vec<FastNoiseLite> {
+    // Ruido para la tierra
+    let mut land_noise = FastNoiseLite::with_seed(42);
+    land_noise.set_noise_type(Some(NoiseType::Perlin));
+    land_noise.set_frequency(Some(5.0));
+    land_noise.set_fractal_type(Some(FractalType::FBm));
+    land_noise.set_fractal_octaves(Some(6));
 
-fn create_earth_noise() -> FastNoiseLite {
-    let mut noise = FastNoiseLite::with_seed(42);
-    noise.set_noise_type(Some(NoiseType::Perlin));
-    noise.set_frequency(Some(5.0));
-    noise.set_fractal_type(Some(FractalType::FBm));
-    noise.set_fractal_octaves(Some(6));
-    noise
+    // Ruido para las nubes
+    let mut cloud_noise = FastNoiseLite::with_seed(1337);
+    cloud_noise.set_noise_type(Some(NoiseType::Perlin));
+    cloud_noise.set_frequency(Some(5.0)); // Mayor frecuencia para más detalle
+    cloud_noise.set_fractal_type(Some(FractalType::FBm));
+    cloud_noise.set_fractal_octaves(Some(1));
+
+    vec![land_noise, cloud_noise]
 }
 
 fn create_jupiter_noise() -> FastNoiseLite {
@@ -59,54 +61,6 @@ fn create_jupiter_noise() -> FastNoiseLite {
     noise.set_frequency(Some(5.0));
     noise.set_fractal_type(Some(FractalType::FBm));
     noise.set_fractal_octaves(Some(3));
-    noise
-}
-
-fn create_noise() -> FastNoiseLite {
-    create_cloud_noise()
-    // create_cell_noise()
-    // create_ground_noise()
-    // create_lava_noise()
-}
-
-fn create_cloud_noise() -> FastNoiseLite {
-    let mut noise = FastNoiseLite::with_seed(1337);
-    noise.set_noise_type(Some(NoiseType::OpenSimplex2));
-    noise
-}
-
-fn create_cell_noise() -> FastNoiseLite {
-    let mut noise = FastNoiseLite::with_seed(1337);
-    noise.set_noise_type(Some(NoiseType::Cellular));
-    noise.set_frequency(Some(0.1));
-    noise
-}
-
-fn create_ground_noise() -> FastNoiseLite {
-    let mut noise = FastNoiseLite::with_seed(1337);
-
-    // Use FBm fractal type to layer multiple octaves of noise
-    noise.set_noise_type(Some(NoiseType::Cellular)); // Cellular noise for cracks
-    noise.set_fractal_type(Some(FractalType::FBm)); // Fractal Brownian Motion
-    noise.set_fractal_octaves(Some(5)); // More octaves = more detail
-    noise.set_fractal_lacunarity(Some(2.0)); // Lacunarity controls frequency scaling
-    noise.set_fractal_gain(Some(0.5)); // Gain controls amplitude scaling
-    noise.set_frequency(Some(0.05)); // Lower frequency for larger features
-
-    noise
-}
-
-fn create_lava_noise() -> FastNoiseLite {
-    let mut noise = FastNoiseLite::with_seed(42);
-
-    // Use FBm for multi-layered noise, giving a "turbulent" feel
-    noise.set_noise_type(Some(NoiseType::Perlin)); // Perlin noise for smooth, natural texture
-    noise.set_fractal_type(Some(FractalType::FBm)); // FBm for layered detail
-    noise.set_fractal_octaves(Some(6)); // High octaves for rich detail
-    noise.set_fractal_lacunarity(Some(2.0)); // Higher lacunarity = more contrast between layers
-    noise.set_fractal_gain(Some(0.5)); // Higher gain = more influence of smaller details
-    noise.set_frequency(Some(0.002)); // Low frequency = large features
-
     noise
 }
 
@@ -265,14 +219,14 @@ fn main() {
     let translation_earth = Vec3::new(-4.0, 0.0, 0.0);
     let rotation_earth = Vec3::new(0.0, 0.0, 0.0);
     let scale_earth = 1.0f32;
-    let noise_earth = create_noise1("earth");
+    let earth_noises = create_earth_noises(); // Vec<FastNoiseLite>
     let vertex_array_earth = obj.get_vertex_array();
 
     // Júpiter
     let translation_jupiter = Vec3::new(4.0, 0.0, 0.0);
     let rotation_jupiter = Vec3::new(0.0, 0.0, 0.0);
     let scale_jupiter = 2.0f32;
-    let noise_jupiter = create_noise1("jupiter");
+    let noise_jupiter = create_jupiter_noise(); // FastNoiseLite
     let vertex_array_jupiter = obj.get_vertex_array();
 
     // Skybox
@@ -282,38 +236,40 @@ fn main() {
     let viewport_matrix =
         create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
 
-    let mut time = 0;
+    let mut time = 0.0f32;
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
             break;
         }
 
-        time += 1;
+        time += 100.0;
 
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
 
         // Renderizar el Skybox
+        let default_noise = create_default_noise();
         let uniforms_skybox = Uniforms {
             model_matrix: Mat4::identity(),
             view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
             projection_matrix,
             viewport_matrix,
             time,
-            noise: create_default_noise(),
+            noises: vec![&default_noise],
         };
         skybox.render(&mut framebuffer, &uniforms_skybox, camera.eye);
 
         // Uniforms de la Tierra
+        let earth_noise_refs: Vec<&FastNoiseLite> = earth_noises.iter().collect();
         let uniforms_earth = Uniforms {
             model_matrix: create_model_matrix(translation_earth, scale_earth, rotation_earth),
             view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
             projection_matrix,
             viewport_matrix,
             time,
-            noise: create_earth_noise(),
+            noises: earth_noise_refs,
         };
 
         // Uniforms de Júpiter
@@ -323,7 +279,7 @@ fn main() {
             projection_matrix,
             viewport_matrix,
             time,
-            noise: create_jupiter_noise(),
+            noises: vec![&noise_jupiter],
         };
 
         // Renderizar la Tierra
@@ -353,7 +309,7 @@ fn handle_input(window: &Window, camera: &mut Camera) {
     let rotation_speed = PI / 50.0;
     let zoom_speed = 0.1;
 
-    //  camera orbit controls
+    // Controles de órbita de la cámara
     if window.is_key_down(Key::Left) {
         camera.orbit(rotation_speed, 0.0);
     }
@@ -367,7 +323,7 @@ fn handle_input(window: &Window, camera: &mut Camera) {
         camera.orbit(0.0, rotation_speed);
     }
 
-    // Camera movement controls
+    // Controles de movimiento de la cámara
     let mut movement = Vec3::new(0.0, 0.0, 0.0);
     if window.is_key_down(Key::A) {
         movement.x -= movement_speed;
@@ -385,7 +341,7 @@ fn handle_input(window: &Window, camera: &mut Camera) {
         camera.move_center(movement);
     }
 
-    // Camera zoom controls
+    // Controles de zoom de la cámara
     if window.is_key_down(Key::Up) {
         camera.zoom(zoom_speed);
     }
