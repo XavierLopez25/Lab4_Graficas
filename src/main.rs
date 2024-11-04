@@ -1,6 +1,7 @@
 use minifb::{Key, Window, WindowOptions};
 use nalgebra_glm::{look_at, perspective, Mat4, Vec3};
 use std::f32::consts::PI;
+use std::time::Instant;
 
 mod camera;
 mod color;
@@ -19,7 +20,7 @@ use fastnoise_lite::{FastNoiseLite, FractalType, NoiseType};
 use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
-use shaders::{shader_earth, shader_jupiter, shader_moon, vertex_shader};
+use shaders::{shader_earth, shader_jupiter, shader_moon, shader_ring, vertex_shader};
 use skybox::Skybox;
 use triangle::triangle;
 use vertex::Vertex;
@@ -289,6 +290,19 @@ fn main() {
     let moon_noises = create_moon_noises();
     let vertex_array_moon = obj.get_vertex_array();
 
+    let ring_obj = Obj::load("assets/models/ring.obj").expect("Failed to load ring obj");
+    let vertex_array_ring = ring_obj.get_vertex_array();
+    let scale_ring = scale_moon * 0.75; // Ajusta el tamaño del anillo relativo a la Luna
+    let scale_ring2 = scale_moon * 0.75; // Ajusta el tamaño del anillo relativo a la Luna
+
+    let mut previous_time = Instant::now();
+
+    let mut ring1_angle = 0.0f32;
+    let mut ring2_angle = 0.0f32;
+
+    let ring1_rotation_speed = 1.0; // Radianes por segundo
+    let ring2_rotation_speed = -1.45; // Radianes por segundo
+
     // Skybox
     let skybox = Skybox::new(5000);
 
@@ -324,6 +338,13 @@ fn main() {
         );
 
         let rotation_moon = Vec3::new(0.0, angle, 0.0);
+
+        // Calcular delta_time
+        let current_time = Instant::now();
+        let delta_time = (current_time - previous_time).as_secs_f32();
+        previous_time = current_time;
+        ring1_angle += ring1_rotation_speed * delta_time;
+        ring2_angle += ring2_rotation_speed * delta_time;
 
         // Renderizar el Skybox
         let default_noise = create_default_noise();
@@ -368,6 +389,26 @@ fn main() {
             noises: moon_noise_refs,
         };
 
+        let rotation_ring1 = Vec3::new(0.0, 0.0, ring1_angle);
+        let uniforms_ring = Uniforms {
+            model_matrix: create_model_matrix(moon_translation, scale_ring, rotation_ring1),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: vec![], // Puedes agregar noises si los necesitas para el shader
+        };
+
+        let rotation_ring2 = Vec3::new(ring2_angle, 0.0, 0.0);
+        let uniforms_ring2 = Uniforms {
+            model_matrix: create_model_matrix(moon_translation, scale_ring2, rotation_ring2),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: vec![],
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
@@ -382,6 +423,20 @@ fn main() {
             &uniforms_moon,
             &vertex_array_moon,
             shader_moon,
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_ring,
+            &vertex_array_ring,
+            shader_ring, // Crearemos este shader en el siguiente paso
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_ring2,
+            &vertex_array_ring,
+            shader_ring,
         );
 
         // Renderizar Júpiter

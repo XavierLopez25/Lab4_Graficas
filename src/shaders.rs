@@ -422,3 +422,44 @@ pub fn shader_moon(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     // Asegurar que los valores de color estén en el rango válido
     final_color.clamp()
 }
+
+pub fn shader_ring(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    // Posición y normal del fragmento
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+
+    // Iluminación
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    // Generar un patrón para el anillo usando coordenadas polares
+    let x = position.x;
+    let y = position.y;
+    let angle = y.atan2(x);
+    let radius = (x * x + y * y).sqrt();
+
+    // Crear bandas en el anillo
+    let band_frequency = 20.0; // Ajusta este valor para más o menos bandas
+    let band_value = ((angle * band_frequency).sin() * 0.5 + 0.5).powf(2.0);
+
+    // Colores para las bandas
+    let color1 = Color::from_float(0.8, 0.7, 0.5); // Color claro
+    let color2 = Color::from_float(0.6, 0.5, 0.3); // Color oscuro
+
+    // Interpolar entre los colores según el valor de la banda
+    let base_color = color1.lerp(&color2, band_value);
+
+    // Aplicar iluminación difusa
+    let lit_color = base_color * diffuse_intensity;
+
+    // Añadir un término ambiental
+    let ambient_intensity = 0.2;
+    let ambient_color = base_color * ambient_intensity;
+
+    // Combinar los componentes ambiental y difuso
+    let final_color = ambient_color + lit_color;
+
+    // Asegurar que los valores de color estén en el rango válido
+    final_color.clamp()
+}
