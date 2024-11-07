@@ -41,12 +41,6 @@ pub fn vertex_shader(vertex: &Vertex, uniforms: &Uniforms) -> Vertex {
 }
 
 pub fn fragment_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-    // random_color_shader(fragment, uniforms)
-    // black_and_white(fragment, uniforms)
-    // dalmata_shader(fragment, uniforms)
-    // cloud_shader(fragment, uniforms)
-    // cellular_shader(fragment, uniforms)
-    // cracked_ground_shader(fragment, uniforms)
     lava_shader(fragment, uniforms)
 }
 
@@ -175,7 +169,7 @@ fn lava_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     // Base frequency and amplitude for the pulsating effect
     let base_frequency = 0.2;
     let pulsate_amplitude = 0.5;
-    let t = uniforms.time as f32 * 0.01;
+    let t = uniforms.time as f32 * 0.0001;
 
     // Pulsate on the z-axis to change spot size
     let pulsate = (t * base_frequency).sin() * pulsate_amplitude;

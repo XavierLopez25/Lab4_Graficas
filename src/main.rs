@@ -21,9 +21,9 @@ use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{
-    shader_earth, shader_eris, shader_jupiter, shader_mars, shader_mercury, shader_moon,
-    shader_neptune, shader_phobos, shader_pluto, shader_ring, shader_saturn, shader_sedna,
-    shader_uranus, shader_uranus_ring, shader_venus, vertex_shader,
+    fragment_shader, shader_earth, shader_eris, shader_jupiter, shader_mars, shader_mercury,
+    shader_moon, shader_neptune, shader_phobos, shader_pluto, shader_ring, shader_saturn,
+    shader_sedna, shader_uranus, shader_uranus_ring, shader_venus, vertex_shader,
 };
 use skybox::Skybox;
 use triangle::triangle;
@@ -40,6 +40,20 @@ pub struct Uniforms<'a> {
 
 fn create_default_noise() -> FastNoiseLite {
     FastNoiseLite::with_seed(0)
+}
+
+fn create_lava_noise() -> Vec<FastNoiseLite> {
+    let mut noise = FastNoiseLite::with_seed(42);
+
+    // Use FBm for multi-layered noise, giving a "turbulent" feel
+    noise.set_noise_type(Some(NoiseType::Perlin)); // Perlin noise for smooth, natural texture
+    noise.set_fractal_type(Some(FractalType::FBm)); // FBm for layered detail
+    noise.set_fractal_octaves(Some(6)); // High octaves for rich detail
+    noise.set_fractal_lacunarity(Some(2.0)); // Higher lacunarity = more contrast between layers
+    noise.set_fractal_gain(Some(0.5)); // Higher gain = more influence of smaller details
+    noise.set_frequency(Some(0.002)); // Low frequency = large features
+
+    vec![noise]
 }
 
 fn create_earth_noises() -> Vec<FastNoiseLite> {
@@ -476,7 +490,7 @@ fn main() {
 
     // Parámetros de la cámara
     let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 15.0),
+        Vec3::new(0.0, 0.0, 25.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
@@ -485,6 +499,13 @@ fn main() {
     let obj = Obj::load("assets/models/sphere.obj").expect("Failed to load obj");
 
     // Configuraciones de los planetas
+
+    let translation_sun = Vec3::new(-13.0, 0.0, 0.0); // Centered in the solar system
+    let scale_sun = 5.0; // Large scale to represent the Sun's size
+    let sun_noises = create_lava_noise(); // Vec<FastNoiseLite>
+    let vertex_array_sun = obj.get_vertex_array();
+    let rotation_sun = Vec3::new(0.0, 0.0, 0.0); // No rotation needed for visual effect
+
     // Tierra
     let translation_earth = Vec3::new(-4.0, 0.0, 0.0);
     let rotation_earth = Vec3::new(0.0, 0.0, 0.0);
@@ -661,6 +682,16 @@ fn main() {
         };
         skybox.render(&mut framebuffer, &uniforms_skybox, camera.eye);
 
+        let sun_noises_refs: Vec<&FastNoiseLite> = sun_noises.iter().collect();
+        let uniforms_sun = Uniforms {
+            model_matrix: create_model_matrix(translation_sun, scale_sun, rotation_sun),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: sun_noises_refs,
+        };
+
         // Uniforms de la Tierra
         let earth_noise_refs: Vec<&FastNoiseLite> = earth_noises.iter().collect();
         let uniforms_earth = Uniforms {
@@ -829,6 +860,13 @@ fn main() {
             time,
             noises: sedna_noises.iter().collect(),
         };
+
+        render(
+            &mut framebuffer,
+            &uniforms_sun,
+            &vertex_array_sun, // Assuming a vertex array for a sphere representing the Sun
+            fragment_shader,
+        );
 
         // Renderizar la Tierra
         render(
