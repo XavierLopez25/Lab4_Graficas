@@ -16,11 +16,14 @@ mod vertex;
 
 use camera::Camera;
 use color::Color;
-use fastnoise_lite::{FastNoiseLite, FractalType, NoiseType};
+use fastnoise_lite::{CellularDistanceFunction, FastNoiseLite, FractalType, NoiseType};
 use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
-use shaders::{shader_earth, shader_jupiter, shader_moon, shader_ring, vertex_shader};
+use shaders::{
+    shader_earth, shader_jupiter, shader_mercury, shader_moon, shader_ring, shader_venus,
+    vertex_shader,
+};
 use skybox::Skybox;
 use triangle::triangle;
 use vertex::Vertex;
@@ -85,13 +88,26 @@ fn create_earth_noises() -> Vec<FastNoiseLite> {
     ]
 }
 
-fn create_jupiter_noise() -> FastNoiseLite {
-    let mut noise = FastNoiseLite::with_seed(1337);
-    noise.set_noise_type(Some(NoiseType::OpenSimplex2));
-    noise.set_frequency(Some(5.0));
-    noise.set_fractal_type(Some(FractalType::FBm));
-    noise.set_fractal_octaves(Some(3));
-    noise
+fn create_jupiter_noise() -> Vec<FastNoiseLite> {
+    let mut band_noise = FastNoiseLite::with_seed(1337);
+    band_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    band_noise.set_frequency(Some(5.0));
+    band_noise.set_fractal_type(Some(FractalType::FBm));
+    band_noise.set_fractal_octaves(Some(3));
+
+    let mut high_altitude_clouds = FastNoiseLite::with_seed(42);
+    high_altitude_clouds.set_noise_type(Some(NoiseType::OpenSimplex2));
+    high_altitude_clouds.set_frequency(Some(3.0));
+    high_altitude_clouds.set_fractal_type(Some(FractalType::FBm));
+    high_altitude_clouds.set_fractal_octaves(Some(2));
+
+    let mut deep_atmospheric = FastNoiseLite::with_seed(56);
+    deep_atmospheric.set_noise_type(Some(NoiseType::Perlin));
+    deep_atmospheric.set_frequency(Some(1.5));
+    deep_atmospheric.set_fractal_type(Some(FractalType::FBm));
+    deep_atmospheric.set_fractal_octaves(Some(4));
+
+    vec![band_noise, high_altitude_clouds, deep_atmospheric]
 }
 
 fn create_moon_noises() -> Vec<FastNoiseLite> {
@@ -117,6 +133,47 @@ fn create_moon_noises() -> Vec<FastNoiseLite> {
     noise3.set_fractal_octaves(Some(2));
 
     vec![noise1, noise2, noise3]
+}
+
+fn create_venus_noises() -> Vec<FastNoiseLite> {
+    let mut surface_noise = FastNoiseLite::with_seed(1337);
+    surface_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    surface_noise.set_frequency(Some(5.0));
+    surface_noise.set_fractal_type(Some(FractalType::FBm));
+    surface_noise.set_fractal_octaves(Some(3));
+
+    let mut atmosphere_noise = FastNoiseLite::with_seed(235);
+    atmosphere_noise.set_noise_type(Some(NoiseType::Perlin));
+    atmosphere_noise.set_frequency(Some(0.5));
+    atmosphere_noise.set_fractal_type(Some(FractalType::FBm));
+    atmosphere_noise.set_fractal_octaves(Some(4));
+
+    vec![surface_noise, atmosphere_noise]
+}
+
+fn create_mercury_noises() -> Vec<FastNoiseLite> {
+    let mut crater_noise = FastNoiseLite::with_seed(2341);
+    crater_noise.set_noise_type(Some(NoiseType::Cellular));
+    crater_noise.set_frequency(Some(0.5));
+    crater_noise.set_fractal_type(Some(FractalType::FBm));
+    crater_noise.set_fractal_octaves(Some(4));
+    crater_noise.set_cellular_distance_function(Some(CellularDistanceFunction::Manhattan));
+
+    // Additional noise for textural variation
+    let mut texture_noise = FastNoiseLite::with_seed(4567);
+    texture_noise.set_noise_type(Some(NoiseType::Perlin));
+    texture_noise.set_frequency(Some(2.0));
+    texture_noise.set_fractal_type(Some(FractalType::Ridged));
+    texture_noise.set_fractal_octaves(Some(3));
+
+    // Another noise for subtle surface undulations
+    let mut undulation_noise = FastNoiseLite::with_seed(7890);
+    undulation_noise.set_noise_type(Some(NoiseType::Perlin));
+    undulation_noise.set_frequency(Some(0.1));
+    undulation_noise.set_fractal_type(Some(FractalType::FBm));
+    undulation_noise.set_fractal_octaves(Some(2));
+
+    vec![crater_noise, texture_noise, undulation_noise]
 }
 
 fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
@@ -303,6 +360,20 @@ fn main() {
     let ring1_rotation_speed = 1.0; // Radianes por segundo
     let ring2_rotation_speed = -1.45; // Radianes por segundo
 
+    // Posición, rotación y escala para Venus
+    let translation_venus = Vec3::new(-6.0, 0.0, 0.0); // Ajusta la posición según necesites
+    let rotation_venus = Vec3::new(0.0, 0.0, 0.0); // Sin rotación inicial
+    let scale_venus = 0.95f32; // Tamaño relativo de Venus comparado con la Tierra
+    let venus_noises = create_venus_noises(); // Deberás asegurarte de que esta función esté definida y sea llamada correctamente
+    let vertex_array_venus = obj.get_vertex_array();
+
+    // Posición, rotación y escala para Mercurio
+    let translation_mercury = Vec3::new(-8.0, 0.0, 0.0); // Ajusta la posición según necesites
+    let rotation_mercury = Vec3::new(0.0, 0.0, 0.0); // Sin rotación inicial
+    let scale_mercury = 0.38f32; // Tamaño relativo de Mercurio comparado con la Tierra
+    let mercury_noises = create_mercury_noises(); // Asegúrate de definir esta función adecuadamente para ajustarse a las características de Mercurio
+    let vertex_array_mercury = obj.get_vertex_array();
+
     // Skybox
     let skybox = Skybox::new(5000);
 
@@ -369,14 +440,14 @@ fn main() {
             noises: earth_noise_refs,
         };
 
-        // Uniforms de Júpiter
+        let jupiter_noise_refs: Vec<&FastNoiseLite> = noise_jupiter.iter().collect();
         let uniforms_jupiter = Uniforms {
             model_matrix: create_model_matrix(translation_jupiter, scale_jupiter, rotation_jupiter),
             view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
             projection_matrix,
             viewport_matrix,
             time,
-            noises: vec![&noise_jupiter],
+            noises: jupiter_noise_refs,
         };
 
         let moon_noise_refs: Vec<&FastNoiseLite> = moon_noises.iter().collect();
@@ -409,6 +480,27 @@ fn main() {
             noises: vec![],
         };
 
+        let venus_noises = create_venus_noises();
+
+        let uniforms_venus = Uniforms {
+            model_matrix: create_model_matrix(translation_venus, scale_venus, rotation_venus),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: venus_noises.iter().collect(),
+        };
+
+        let mercury_noises = create_mercury_noises();
+        let uniforms_mercury = Uniforms {
+            model_matrix: create_model_matrix(translation_mercury, scale_mercury, rotation_mercury),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: mercury_noises.iter().collect(),
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
@@ -437,6 +529,20 @@ fn main() {
             &uniforms_ring2,
             &vertex_array_ring,
             shader_ring,
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_venus,
+            &vertex_array_venus,
+            shader_venus,
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_mercury,
+            &vertex_array_mercury,
+            shader_mercury,
         );
 
         // Renderizar Júpiter

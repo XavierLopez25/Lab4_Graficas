@@ -325,37 +325,35 @@ pub fn shader_earth(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 }
 
 pub fn shader_jupiter(fragment: &Fragment, uniforms: &Uniforms) -> Color {
-    // Posición y normal del fragmento
     let position = fragment.vertex_position;
     let normal = fragment.normal.normalize();
-
-    // Iluminación
     let light_pos = Vec3::new(0.0, 0.0, 20.0);
     let light_dir = (light_pos - position).normalize();
     let diffuse_intensity = normal.dot(&light_dir).max(0.0);
 
-    // Ruido para bandas atmosféricas
-    let noise_value = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
-    let normalized_value = (noise_value + 1.0) * 0.5;
+    let band_noise_value = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let high_clouds_noise = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+    let deep_atmospheric_noise =
+        uniforms.noises[2].get_noise_3d(position.x, position.y, position.z);
 
-    // Definir colores para las bandas de Júpiter
-    let color1 = Color::from_float(0.804, 0.522, 0.247); // Marrón claro
+    let normalized_band_value = (band_noise_value + 1.0) * 0.5;
+    let normalized_high_clouds = (high_clouds_noise + 1.0) * 0.5;
+    let normalized_deep_atmos = (deep_atmospheric_noise + 1.0) * 0.5;
+
+    let color1 = Color::from_float(0.804, 0.522, 0.247); // Light brown
     let color2 = Color::from_float(0.870, 0.721, 0.529); // Beige
+    let high_clouds_color = Color::from_float(0.9, 0.9, 0.9); // High clouds
+    let deep_color = Color::from_float(0.5, 0.4, 0.3); // Deeper atmospheric color
 
-    // Usar `lerp` para interpolar entre los colores de las bandas
-    let base_color = color1.lerp(&color2, normalized_value);
+    let base_color = color1.lerp(&color2, normalized_band_value);
+    let clouds_color = base_color.lerp(&high_clouds_color, normalized_high_clouds);
+    let mut final_color = clouds_color.lerp(&deep_color, normalized_deep_atmos);
 
-    // Aplicar iluminación difusa al color base
-    let lit_color = base_color * diffuse_intensity;
-
-    // Añadir un término ambiental
+    let lit_color = final_color * diffuse_intensity;
     let ambient_intensity = 0.1;
-    let ambient_color = base_color * ambient_intensity;
+    let ambient_color = final_color * ambient_intensity;
+    final_color = ambient_color + lit_color;
 
-    // Combinar los componentes ambiental y difuso
-    let final_color = ambient_color + lit_color;
-
-    // Asegurar que los valores de color estén en el rango válido
     final_color.clamp()
 }
 
@@ -461,5 +459,60 @@ pub fn shader_ring(fragment: &Fragment, uniforms: &Uniforms) -> Color {
     let final_color = ambient_color + lit_color;
 
     // Asegurar que los valores de color estén en el rango válido
+    final_color.clamp()
+}
+
+pub fn shader_venus(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let surface_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let atmosphere_noise =
+        uniforms.noises[1].get_noise_3d(position.x * 0.1, position.y * 0.1, position.z * 0.1);
+
+    let surface_color = Color::from_float(0.8, 0.4, 0.1); // Deep volcanic orange
+    let cloud_color = Color::from_float(0.9, 0.85, 0.7); // Sulphuric clouds
+    let glow_color = Color::from_float(0.95, 0.65, 0.2); // Warm atmospheric glow
+
+    let mut base_color = surface_color.lerp(&cloud_color, surface_noise.abs());
+    base_color = base_color.lerp(&glow_color, atmosphere_noise.abs());
+
+    let lit_color = base_color * diffuse_intensity;
+    let ambient_intensity = 0.2;
+    let ambient_color = base_color * ambient_intensity;
+    let final_color = ambient_color + lit_color;
+
+    final_color.clamp()
+}
+
+pub fn shader_mercury(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let crater_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let texture_noise =
+        uniforms.noises[1].get_noise_3d(position.x * 10.0, position.y * 10.0, position.z * 10.0);
+    let undulation_noise =
+        uniforms.noises[2].get_noise_3d(position.x * 0.1, position.y * 0.1, position.z * 0.1);
+
+    let base_color = Color::from_float(0.6, 0.5, 0.4); // Basaltic rock
+    let dark_crater_color = Color::from_float(0.3, 0.3, 0.3); // Shadow in craters
+    let highlight_color = Color::from_float(0.7, 0.7, 0.6); // Sunlit edges
+
+    let crater_base = base_color.lerp(&dark_crater_color, crater_noise.abs());
+    let textured_color = crater_base.lerp(&highlight_color, texture_noise.abs());
+    let mut final_color = textured_color.lerp(&base_color, undulation_noise.abs());
+
+    let lit_color = final_color * diffuse_intensity;
+    let ambient_intensity = 0.2;
+    let ambient_color = final_color * ambient_intensity;
+    final_color = ambient_color + lit_color;
+
     final_color.clamp()
 }
