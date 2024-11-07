@@ -21,8 +21,9 @@ use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{
-    shader_earth, shader_jupiter, shader_mars, shader_mercury, shader_moon, shader_phobos,
-    shader_ring, shader_saturn, shader_uranus, shader_uranus_ring, shader_venus, vertex_shader,
+    shader_earth, shader_eris, shader_jupiter, shader_mars, shader_mercury, shader_moon,
+    shader_neptune, shader_phobos, shader_pluto, shader_ring, shader_saturn, shader_sedna,
+    shader_uranus, shader_uranus_ring, shader_venus, vertex_shader,
 };
 use skybox::Skybox;
 use triangle::triangle;
@@ -271,6 +272,68 @@ fn create_uranus_ring_noises() -> Vec<FastNoiseLite> {
     vec![ring_noise1, ring_noise2]
 }
 
+fn create_neptune_noises() -> Vec<FastNoiseLite> {
+    let mut surface_noise = FastNoiseLite::with_seed(501);
+    surface_noise.set_noise_type(Some(NoiseType::Perlin));
+    surface_noise.set_frequency(Some(0.8));
+    surface_noise.set_fractal_type(Some(FractalType::FBm));
+    surface_noise.set_fractal_octaves(Some(5));
+
+    let mut atmosphere_noise = FastNoiseLite::with_seed(502);
+    atmosphere_noise.set_noise_type(Some(NoiseType::Perlin));
+    atmosphere_noise.set_frequency(Some(1.2));
+    atmosphere_noise.set_fractal_type(Some(FractalType::Ridged));
+    atmosphere_noise.set_fractal_octaves(Some(4));
+
+    vec![surface_noise, atmosphere_noise]
+}
+
+fn create_pluto_noises() -> Vec<FastNoiseLite> {
+    let mut surface_noise = FastNoiseLite::with_seed(601);
+    surface_noise.set_noise_type(Some(NoiseType::Cellular));
+    surface_noise.set_frequency(Some(0.5));
+    surface_noise.set_cellular_distance_function(Some(CellularDistanceFunction::Euclidean));
+
+    let mut ice_noise = FastNoiseLite::with_seed(602);
+    ice_noise.set_noise_type(Some(NoiseType::Perlin));
+    ice_noise.set_frequency(Some(1.0));
+    ice_noise.set_fractal_type(Some(FractalType::FBm));
+    ice_noise.set_fractal_octaves(Some(3));
+
+    vec![surface_noise, ice_noise]
+}
+
+fn create_eris_noises() -> Vec<FastNoiseLite> {
+    let mut surface_noise = FastNoiseLite::with_seed(701);
+    surface_noise.set_noise_type(Some(NoiseType::Perlin));
+    surface_noise.set_frequency(Some(0.7));
+    surface_noise.set_fractal_type(Some(FractalType::FBm));
+    surface_noise.set_fractal_octaves(Some(4));
+
+    let mut ice_noise = FastNoiseLite::with_seed(702);
+    ice_noise.set_noise_type(Some(NoiseType::Perlin));
+    ice_noise.set_frequency(Some(1.1));
+    ice_noise.set_fractal_type(Some(FractalType::Ridged));
+    ice_noise.set_fractal_octaves(Some(5));
+
+    vec![surface_noise, ice_noise]
+}
+
+fn create_sedna_noises() -> Vec<FastNoiseLite> {
+    let mut surface_noise = FastNoiseLite::with_seed(801);
+    surface_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    surface_noise.set_frequency(Some(0.6));
+    surface_noise.set_fractal_type(Some(FractalType::FBm));
+    surface_noise.set_fractal_octaves(Some(3));
+
+    let mut ice_noise = FastNoiseLite::with_seed(802);
+    ice_noise.set_noise_type(Some(NoiseType::Cellular));
+    ice_noise.set_frequency(Some(0.4));
+    ice_noise.set_cellular_distance_function(Some(CellularDistanceFunction::Manhattan));
+
+    vec![surface_noise, ice_noise]
+}
+
 fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
     let (sin_x, cos_x) = rotation.x.sin_cos();
     let (sin_y, cos_y) = rotation.y.sin_cos();
@@ -511,6 +574,31 @@ fn main() {
     let urano_ring_noises = create_uranus_ring_noises(); // Asumiendo que está definido
     let vertex_array_urano_ring = ring_obj.get_vertex_array(); // Asumiendo que cargaste un modelo para los anillos
 
+    // Neptuno
+    let translation_neptune = Vec3::new(17.0, 0.0, 0.0);
+    let rotation_neptune = Vec3::new(0.0, 0.0, 0.0);
+    let scale_neptune = 1.6f32;
+    let neptune_noises = create_neptune_noises(); // Assuming create_neptune_noises() is defined
+    let vertex_array_neptune = obj.get_vertex_array();
+
+    // Plutón
+    let translation_pluto = Vec3::new(19.0, 0.0, 0.0);
+    let rotation_pluto = Vec3::new(0.0, 0.0, 0.0);
+    let scale_pluto = 0.80f32;
+    let vertex_array_pluto = obj.get_vertex_array();
+
+    // Eris
+    let translation_eris = Vec3::new(21.0, 0.0, 0.0);
+    let rotation_eris = Vec3::new(0.0, 0.0, 0.0);
+    let scale_eris = 0.75f32;
+    let vertex_array_eris = obj.get_vertex_array();
+
+    // Sedna
+    let translation_sedna = Vec3::new(23.0, 0.0, 0.0);
+    let rotation_sedna = Vec3::new(0.0, 0.0, 0.0);
+    let scale_sedna = 0.60f32;
+    let vertex_array_sedna = obj.get_vertex_array();
+
     // Skybox
     let skybox = Skybox::new(5000);
 
@@ -698,6 +786,50 @@ fn main() {
             noises: urano_ring_noises.iter().collect(),
         };
 
+        // Neptuno
+        let neptune_noises = create_neptune_noises();
+        let uniforms_neptune = Uniforms {
+            model_matrix: create_model_matrix(translation_neptune, scale_neptune, rotation_neptune),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: neptune_noises.iter().collect(),
+        };
+
+        // Plutón
+        let pluto_noises = create_pluto_noises();
+        let uniforms_pluto = Uniforms {
+            model_matrix: create_model_matrix(translation_pluto, scale_pluto, rotation_pluto),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: pluto_noises.iter().collect(),
+        };
+
+        // Eris
+        let eris_noises = create_eris_noises();
+        let uniforms_eris = Uniforms {
+            model_matrix: create_model_matrix(translation_eris, scale_eris, rotation_eris),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: eris_noises.iter().collect(),
+        };
+
+        // Sedna
+        let sedna_noises = create_sedna_noises();
+        let uniforms_sedna = Uniforms {
+            model_matrix: create_model_matrix(translation_sedna, scale_sedna, rotation_sedna),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: sedna_noises.iter().collect(),
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
@@ -812,6 +944,34 @@ fn main() {
             &uniforms_urano_ring,
             &vertex_array_urano_ring,
             shader_uranus_ring, // Asegúrate de que shader_urano_ring está implementado
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_neptune,
+            &vertex_array_neptune,
+            shader_neptune,
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_pluto,
+            &vertex_array_pluto,
+            shader_pluto,
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_eris,
+            &vertex_array_eris,
+            shader_eris,
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_sedna,
+            &vertex_array_sedna,
+            shader_sedna,
         );
 
         window

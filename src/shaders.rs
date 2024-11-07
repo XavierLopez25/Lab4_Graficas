@@ -622,3 +622,79 @@ pub fn shader_uranus_ring(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     final_color.clamp()
 }
+
+pub fn shader_neptune(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let surface_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let atmosphere_noise = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.2, 0.2, 0.6);
+    let atmosphere_color = Color::from_float(0.1, 0.1, 0.7);
+
+    let combined_color = base_color.lerp(&atmosphere_color, atmosphere_noise.abs());
+    let final_color = combined_color * diffuse_intensity;
+
+    final_color.clamp()
+}
+
+pub fn shader_pluto(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let surface_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let ice_noise = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.5, 0.5, 0.5);
+    let ice_color = Color::from_float(0.8, 0.8, 0.9);
+
+    let combined_color = base_color.lerp(&ice_color, ice_noise.abs());
+    let final_color = combined_color * diffuse_intensity;
+
+    final_color.clamp()
+}
+
+pub fn shader_eris(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let surface_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let ice_noise = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.6, 0.5, 0.4);
+    let ice_color = Color::from_float(0.7, 0.7, 0.8);
+
+    let combined_color = base_color.lerp(&ice_color, ice_noise.abs());
+    let final_color = combined_color * diffuse_intensity;
+
+    final_color.clamp()
+}
+
+pub fn shader_sedna(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let surface_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let ice_noise = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.4, 0.3, 0.3);
+    let ice_color = Color::from_float(0.5, 0.5, 0.6);
+
+    let combined_color = base_color.lerp(&ice_color, ice_noise.abs());
+    let final_color = combined_color * diffuse_intensity;
+
+    final_color.clamp()
+}
