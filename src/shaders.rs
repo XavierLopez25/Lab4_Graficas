@@ -516,3 +516,50 @@ pub fn shader_mercury(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     final_color.clamp()
 }
+
+pub fn shader_mars(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let surface_value = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let detail_value = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+    let atmospheric_value = uniforms.noises[2].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(1.0, 0.7, 0.5); // Color base para Marte (#ff9966)
+    let detail_color = Color::from_float(0.12, 0.09, 0.05); // Detalles más claros
+    let atmospheric_color = Color::from_float(0.9, 0.4, 0.3); // Tono atmosférico
+
+    let combined_color = base_color
+        .lerp(&detail_color, detail_value.abs())
+        .lerp(&atmospheric_color, atmospheric_value.abs());
+    let final_color = combined_color * diffuse_intensity;
+
+    final_color.clamp()
+}
+
+pub fn shader_phobos(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let crater_noise = uniforms.noises[2].get_noise_3d(position.x, position.y, position.z);
+    let surface_noise = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+    let detail_noise = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.6, 0.5, 0.4); // Basaltic rock
+    let dark_crater_color = Color::from_float(0.3, 0.3, 0.3); // Shadow in craters
+    let highlight_color = Color::from_float(0.7, 0.7, 0.6); // Sunlit edges
+
+    let final_color = base_color
+        .lerp(&base_color, crater_noise.abs())
+        .lerp(&dark_crater_color, surface_noise.abs())
+        .lerp(&highlight_color, detail_noise.abs());
+    let lit_color = final_color * diffuse_intensity;
+
+    lit_color.clamp()
+}

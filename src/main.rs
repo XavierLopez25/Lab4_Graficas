@@ -21,8 +21,8 @@ use fragment::Fragment;
 use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{
-    shader_earth, shader_jupiter, shader_mercury, shader_moon, shader_ring, shader_venus,
-    vertex_shader,
+    shader_earth, shader_jupiter, shader_mars, shader_mercury, shader_moon, shader_phobos,
+    shader_ring, shader_venus, vertex_shader,
 };
 use skybox::Skybox;
 use triangle::triangle;
@@ -152,6 +152,53 @@ fn create_venus_noises() -> Vec<FastNoiseLite> {
 }
 
 fn create_mercury_noises() -> Vec<FastNoiseLite> {
+    let mut crater_noise = FastNoiseLite::with_seed(2341);
+    crater_noise.set_noise_type(Some(NoiseType::Cellular));
+    crater_noise.set_frequency(Some(0.5));
+    crater_noise.set_fractal_type(Some(FractalType::FBm));
+    crater_noise.set_fractal_octaves(Some(4));
+    crater_noise.set_cellular_distance_function(Some(CellularDistanceFunction::Manhattan));
+
+    // Additional noise for textural variation
+    let mut texture_noise = FastNoiseLite::with_seed(4567);
+    texture_noise.set_noise_type(Some(NoiseType::Perlin));
+    texture_noise.set_frequency(Some(2.0));
+    texture_noise.set_fractal_type(Some(FractalType::Ridged));
+    texture_noise.set_fractal_octaves(Some(3));
+
+    // Another noise for subtle surface undulations
+    let mut undulation_noise = FastNoiseLite::with_seed(7890);
+    undulation_noise.set_noise_type(Some(NoiseType::Perlin));
+    undulation_noise.set_frequency(Some(0.1));
+    undulation_noise.set_fractal_type(Some(FractalType::FBm));
+    undulation_noise.set_fractal_octaves(Some(2));
+
+    vec![crater_noise, texture_noise, undulation_noise]
+}
+
+fn create_mars_noises() -> Vec<FastNoiseLite> {
+    let mut surface_noise = FastNoiseLite::with_seed(1024);
+    surface_noise.set_noise_type(Some(NoiseType::Perlin));
+    surface_noise.set_frequency(Some(0.6)); // Menor frecuencia para características más amplias
+    surface_noise.set_fractal_type(Some(FractalType::FBm));
+    surface_noise.set_fractal_octaves(Some(4));
+
+    let mut detail_noise = FastNoiseLite::with_seed(2048);
+    detail_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    detail_noise.set_frequency(Some(2.0)); // Mayor frecuencia para detalles finos
+    detail_noise.set_fractal_type(Some(FractalType::FBm));
+    detail_noise.set_fractal_octaves(Some(3));
+
+    let mut atmospheric_noise = FastNoiseLite::with_seed(3100);
+    atmospheric_noise.set_noise_type(Some(NoiseType::Perlin));
+    atmospheric_noise.set_frequency(Some(0.5));
+    atmospheric_noise.set_fractal_type(Some(FractalType::Ridged));
+    atmospheric_noise.set_fractal_octaves(Some(2));
+
+    vec![surface_noise, detail_noise, atmospheric_noise]
+}
+
+fn create_phobos_noises() -> Vec<FastNoiseLite> {
     let mut crater_noise = FastNoiseLite::with_seed(2341);
     crater_noise.set_noise_type(Some(NoiseType::Cellular));
     crater_noise.set_frequency(Some(0.5));
@@ -335,7 +382,7 @@ fn main() {
     let vertex_array_earth = obj.get_vertex_array();
 
     // Júpiter
-    let translation_jupiter = Vec3::new(4.0, 0.0, 0.0);
+    let translation_jupiter = Vec3::new(6.0, 0.0, 0.0);
     let rotation_jupiter = Vec3::new(0.0, 0.0, 0.0);
     let scale_jupiter = 2.0f32;
     let noise_jupiter = create_jupiter_noise(); // FastNoiseLite
@@ -364,15 +411,26 @@ fn main() {
     let translation_venus = Vec3::new(-6.0, 0.0, 0.0); // Ajusta la posición según necesites
     let rotation_venus = Vec3::new(0.0, 0.0, 0.0); // Sin rotación inicial
     let scale_venus = 0.95f32; // Tamaño relativo de Venus comparado con la Tierra
-    let venus_noises = create_venus_noises(); // Deberás asegurarte de que esta función esté definida y sea llamada correctamente
     let vertex_array_venus = obj.get_vertex_array();
 
     // Posición, rotación y escala para Mercurio
     let translation_mercury = Vec3::new(-8.0, 0.0, 0.0); // Ajusta la posición según necesites
     let rotation_mercury = Vec3::new(0.0, 0.0, 0.0); // Sin rotación inicial
     let scale_mercury = 0.38f32; // Tamaño relativo de Mercurio comparado con la Tierra
-    let mercury_noises = create_mercury_noises(); // Asegúrate de definir esta función adecuadamente para ajustarse a las características de Mercurio
     let vertex_array_mercury = obj.get_vertex_array();
+
+    // Posición, rotación y escala para Marte
+    let translation_mars = Vec3::new(0.0, 0.0, 0.0);
+    let rotation_mars = Vec3::new(0.0, 0.0, 0.0);
+    let scale_mars = 1.88f32; // Tamaño relativo de Marte comparado con la Tierra
+    let mars_noises = create_mars_noises();
+    let vertex_array_mars = obj.get_vertex_array();
+
+    // Posición, rotación y escala para Phobos
+    let rotation_phobos = Vec3::new(0.0, 0.0, 0.0);
+    let scale_phobos = 0.33f32; // Tamaño relativo de Phobos comparado con la Luna
+    let phobos_noises = create_phobos_noises();
+    let vertex_array_phobos = obj.get_vertex_array();
 
     // Skybox
     let skybox = Skybox::new(5000);
@@ -416,6 +474,17 @@ fn main() {
         previous_time = current_time;
         ring1_angle += ring1_rotation_speed * delta_time;
         ring2_angle += ring2_rotation_speed * delta_time;
+
+        let phobos_orbit_speed = 0.0002; // Ajusta la velocidad de la órbita
+        let phobos_distance_from_mars = 2.0; // Distancia de Phobos a Marte
+        let phobos_orbit_angle = time * phobos_orbit_speed;
+
+        // Cálculo de la nueva posición de Phobos en órbita
+        let phobos_translation = Vec3::new(
+            translation_mars.x + phobos_distance_from_mars * phobos_orbit_angle.cos(),
+            translation_mars.y + phobos_distance_from_mars * phobos_orbit_angle.sin(),
+            translation_mars.z,
+        );
 
         // Renderizar el Skybox
         let default_noise = create_default_noise();
@@ -501,6 +570,25 @@ fn main() {
             noises: mercury_noises.iter().collect(),
         };
 
+        // Crear uniforms para Marte y Phobos
+        let uniforms_mars = Uniforms {
+            model_matrix: create_model_matrix(translation_mars, scale_mars, rotation_mars),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: mars_noises.iter().collect(),
+        };
+
+        let uniforms_phobos = Uniforms {
+            model_matrix: create_model_matrix(phobos_translation, scale_phobos, rotation_phobos),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: phobos_noises.iter().collect(),
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
@@ -551,6 +639,21 @@ fn main() {
             &uniforms_jupiter,
             &vertex_array_jupiter,
             shader_jupiter,
+        );
+
+        // Agregar renderizado de Marte y Phobos
+        render(
+            &mut framebuffer,
+            &uniforms_mars,
+            &vertex_array_mars,
+            shader_mars, // Asegúrate de que shader_mars está implementado
+        );
+
+        render(
+            &mut framebuffer,
+            &uniforms_phobos,
+            &vertex_array_phobos,
+            shader_phobos, // Asegúrate de que shader_phobos está implementado
         );
 
         window
