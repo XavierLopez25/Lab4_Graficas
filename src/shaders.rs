@@ -586,3 +586,39 @@ pub fn shader_saturn(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     lit_color.clamp()
 }
+
+pub fn shader_uranus(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_dir = (Vec3::new(0.0, 0.0, 20.0) - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let primary_value = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let secondary_value = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.4, 0.5, 0.6); // Color base para Urano
+    let secondary_color = Color::from_float(0.3, 0.4, 0.5); // Color secundario para dar más profundidad
+
+    let combined_color = base_color.lerp(&secondary_color, secondary_value.abs());
+    let final_color = combined_color * diffuse_intensity;
+
+    final_color.clamp()
+}
+
+pub fn shader_uranus_ring(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_dir = (Vec3::new(0.0, 0.0, 20.0) - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let noise1 = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let noise2 = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.15, 0.15, 0.15); // Muy oscuro para el anillo
+    let detail_color = Color::from_float(0.2, 0.2, 0.2); // Ligeramente más claro para detalles
+
+    let color_blend = base_color.lerp(&detail_color, (noise1.abs() + noise2.abs()) / 2.0);
+    let final_color = color_blend * diffuse_intensity;
+
+    final_color.clamp()
+}

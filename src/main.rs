@@ -22,7 +22,7 @@ use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{
     shader_earth, shader_jupiter, shader_mars, shader_mercury, shader_moon, shader_phobos,
-    shader_ring, shader_saturn, shader_venus, vertex_shader,
+    shader_ring, shader_saturn, shader_uranus, shader_uranus_ring, shader_venus, vertex_shader,
 };
 use skybox::Skybox;
 use triangle::triangle;
@@ -237,6 +237,38 @@ fn create_saturn_noises() -> Vec<FastNoiseLite> {
     cloud_noise.set_fractal_octaves(Some(3));
 
     vec![band_noise, cloud_noise]
+}
+
+fn create_uranus_noises() -> Vec<FastNoiseLite> {
+    let mut primary_noise = FastNoiseLite::with_seed(1234);
+    primary_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    primary_noise.set_frequency(Some(1.5));
+    primary_noise.set_fractal_type(Some(FractalType::FBm));
+    primary_noise.set_fractal_octaves(Some(3));
+
+    let mut secondary_noise = FastNoiseLite::with_seed(5678);
+    secondary_noise.set_noise_type(Some(NoiseType::Perlin));
+    secondary_noise.set_frequency(Some(2.0));
+    secondary_noise.set_fractal_type(Some(FractalType::Ridged));
+    secondary_noise.set_fractal_octaves(Some(2));
+
+    vec![primary_noise, secondary_noise]
+}
+
+fn create_uranus_ring_noises() -> Vec<FastNoiseLite> {
+    let mut ring_noise1 = FastNoiseLite::with_seed(8910);
+    ring_noise1.set_noise_type(Some(NoiseType::Cellular));
+    ring_noise1.set_frequency(Some(0.5));
+    ring_noise1.set_fractal_type(Some(FractalType::FBm));
+    ring_noise1.set_fractal_octaves(Some(2));
+
+    let mut ring_noise2 = FastNoiseLite::with_seed(1112);
+    ring_noise2.set_noise_type(Some(NoiseType::Perlin));
+    ring_noise2.set_frequency(Some(1.0));
+    ring_noise2.set_fractal_type(Some(FractalType::FBm));
+    ring_noise2.set_fractal_octaves(Some(1));
+
+    vec![ring_noise1, ring_noise2]
 }
 
 fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
@@ -465,6 +497,20 @@ fn main() {
     let base_rotation = Vec3::new(0.0, 1.0, 0.0); // Rotación inicial
     let rotation_increment = 0.015; // Incremento en la rotación en el eje Y entre anillos
 
+    // Configuraciones para Urano
+    let translation_urano = Vec3::new(15.0, 0.0, 0.0); // Ajusta según la disposición de tu sistema
+    let rotation_urano = Vec3::new(0.0, 0.0, 0.0);
+    let scale_urano = 1.2f32; // Tamaño relativo de Urano comparado con la Tierra
+    let urano_noises = create_uranus_noises(); // Asumiendo que está definido
+    let vertex_array_urano = obj.get_vertex_array();
+
+    // Configuraciones para el Anillo de Urano
+    let translation_urano_ring = Vec3::new(15.0, 0.0, 0.0);
+    let rotation_urano_ring = Vec3::new(0.0, 0.1, 1.0); // Los anillos de Urano son notablemente inclinados
+    let scale_urano_ring = 1.8f32; // Escala del anillo respecto a Urano
+    let urano_ring_noises = create_uranus_ring_noises(); // Asumiendo que está definido
+    let vertex_array_urano_ring = ring_obj.get_vertex_array(); // Asumiendo que cargaste un modelo para los anillos
+
     // Skybox
     let skybox = Skybox::new(5000);
 
@@ -628,6 +674,30 @@ fn main() {
             noises: saturn_noises.iter().collect(),
         };
 
+        // Uniforms para Urano
+        let uniforms_urano = Uniforms {
+            model_matrix: create_model_matrix(translation_urano, scale_urano, rotation_urano),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: urano_noises.iter().collect(),
+        };
+
+        // Uniforms para el Anillo de Urano
+        let uniforms_urano_ring = Uniforms {
+            model_matrix: create_model_matrix(
+                translation_urano_ring,
+                scale_urano_ring,
+                rotation_urano_ring,
+            ),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: urano_ring_noises.iter().collect(),
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
@@ -727,6 +797,22 @@ fn main() {
                 shader_ring,
             );
         }
+
+        // Renderizar Urano
+        render(
+            &mut framebuffer,
+            &uniforms_urano,
+            &vertex_array_urano,
+            shader_uranus, // Asegúrate de que shader_urano está implementado
+        );
+
+        // Renderizar el Anillo de Urano
+        render(
+            &mut framebuffer,
+            &uniforms_urano_ring,
+            &vertex_array_urano_ring,
+            shader_uranus_ring, // Asegúrate de que shader_urano_ring está implementado
+        );
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
