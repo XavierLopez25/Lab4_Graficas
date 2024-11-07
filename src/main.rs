@@ -22,7 +22,7 @@ use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{
     shader_earth, shader_jupiter, shader_mars, shader_mercury, shader_moon, shader_phobos,
-    shader_ring, shader_venus, vertex_shader,
+    shader_ring, shader_saturn, shader_venus, vertex_shader,
 };
 use skybox::Skybox;
 use triangle::triangle;
@@ -221,6 +221,22 @@ fn create_phobos_noises() -> Vec<FastNoiseLite> {
     undulation_noise.set_fractal_octaves(Some(2));
 
     vec![crater_noise, texture_noise, undulation_noise]
+}
+
+fn create_saturn_noises() -> Vec<FastNoiseLite> {
+    let mut band_noise = FastNoiseLite::with_seed(12345);
+    band_noise.set_noise_type(Some(NoiseType::OpenSimplex2));
+    band_noise.set_frequency(Some(3.0));
+    band_noise.set_fractal_type(Some(FractalType::FBm));
+    band_noise.set_fractal_octaves(Some(4));
+
+    let mut cloud_noise = FastNoiseLite::with_seed(67890);
+    cloud_noise.set_noise_type(Some(NoiseType::Perlin));
+    cloud_noise.set_frequency(Some(1.5));
+    cloud_noise.set_fractal_type(Some(FractalType::Ridged));
+    cloud_noise.set_fractal_octaves(Some(3));
+
+    vec![band_noise, cloud_noise]
 }
 
 fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
@@ -432,6 +448,23 @@ fn main() {
     let phobos_noises = create_phobos_noises();
     let vertex_array_phobos = obj.get_vertex_array();
 
+    // Saturn
+    let translation_saturn = Vec3::new(12.0, 0.0, 0.0); // Position Saturn further out
+    let rotation_saturn = Vec3::new(0.0, 0.0, 0.0); // No initial rotation
+    let scale_saturn = 1.5f32; // Relative size of Saturn compared to Earth
+    let saturn_noises = create_saturn_noises(); // Assuming create_saturn_noises() is defined
+    let vertex_array_saturn = obj.get_vertex_array(); // Use the same sphere model
+
+    // Saturn's Rings
+    let translation_rings = Vec3::new(12.0, 0.0, 0.0); // Align rings with Saturn's position
+    let vertex_array_rings = ring_obj.get_vertex_array(); // Use a different model if rings are unique
+
+    let num_rings = 6; // Número de anillos que quieres generar
+    let base_scale = 2.0f32; // Escala inicial para el primer anillo
+    let scale_increment = 0.1f32; // Incremento de escala entre anillos consecutivos
+    let base_rotation = Vec3::new(0.0, 1.0, 0.0); // Rotación inicial
+    let rotation_increment = 0.015; // Incremento en la rotación en el eje Y entre anillos
+
     // Skybox
     let skybox = Skybox::new(5000);
 
@@ -451,10 +484,6 @@ fn main() {
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
-
-        // Calcular la posición de la luna orbitando alrededor de la Tierra
-        let moon_orbit_speed = 0.005; // Velocidad de órbita de la luna
-        let angle = 0.025 * time * moon_orbit_speed;
 
         // Calcular la posición de la luna orbitando alrededor de la Tierra
         let moon_orbit_speed = 0.005; // Velocidad de órbita de la luna
@@ -589,6 +618,16 @@ fn main() {
             noises: phobos_noises.iter().collect(),
         };
 
+        // Uniforms for Saturn
+        let uniforms_saturn = Uniforms {
+            model_matrix: create_model_matrix(translation_saturn, scale_saturn, rotation_saturn),
+            view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+            projection_matrix,
+            viewport_matrix,
+            time,
+            noises: saturn_noises.iter().collect(),
+        };
+
         // Renderizar la Tierra
         render(
             &mut framebuffer,
@@ -655,6 +694,39 @@ fn main() {
             &vertex_array_phobos,
             shader_phobos, // Asegúrate de que shader_phobos está implementado
         );
+
+        render(
+            &mut framebuffer,
+            &uniforms_saturn,
+            &vertex_array_saturn,
+            shader_saturn,
+        );
+
+        for i in 0..num_rings {
+            let scale = base_scale + (i as f32 * scale_increment);
+            let rotation = Vec3::new(
+                0.0,
+                1.0,
+                base_rotation.y
+                    + (i as f32 * rotation_increment * if i % 2 == 0 { 1.0 } else { -1.0 }),
+            );
+
+            let uniforms_ring = Uniforms {
+                model_matrix: create_model_matrix(translation_rings, scale, rotation),
+                view_matrix: create_view_matrix(camera.eye, camera.center, camera.up),
+                projection_matrix,
+                viewport_matrix,
+                time,
+                noises: vec![], // Los anillos no requieren ruido en este ajuste
+            };
+
+            render(
+                &mut framebuffer,
+                &uniforms_ring,
+                &vertex_array_rings,
+                shader_ring,
+            );
+        }
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)

@@ -563,3 +563,26 @@ pub fn shader_phobos(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
     lit_color.clamp()
 }
+
+pub fn shader_saturn(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+    let position = fragment.vertex_position;
+    let normal = fragment.normal.normalize();
+    let light_pos = Vec3::new(0.0, 0.0, 20.0);
+    let light_dir = (light_pos - position).normalize();
+    let diffuse_intensity = normal.dot(&light_dir).max(0.0);
+
+    let band_value = uniforms.noises[0].get_noise_3d(position.x, position.y, position.z);
+    let cloud_value = uniforms.noises[1].get_noise_3d(position.x, position.y, position.z);
+
+    let base_color = Color::from_float(0.5, 0.5, 0.5); // Neutral color for Saturn's base
+    let band_color = Color::from_float(0.7, 0.7, 0.5); // Slightly yellow for bands
+    let cloud_color = Color::from_float(0.9, 0.9, 0.7); // Lighter color for clouds
+
+    let color = base_color
+        .lerp(&band_color, (band_value + 1.0) * 0.5)
+        .lerp(&cloud_color, cloud_value.abs());
+
+    let lit_color = color * diffuse_intensity;
+
+    lit_color.clamp()
+}
