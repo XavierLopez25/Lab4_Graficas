@@ -12,17 +12,56 @@ El sistema solar se representa mediante un renderer de software en Rust, donde c
 
 ## Videos de los planetas de Warframe en el simulador de Rust
 
-### Sol (no visible en Warframe, pero presente)
+#### Sol (no visible en Warframe, pero presente)
+
 https://github.com/user-attachments/assets/113da9b7-7990-4178-b1e1-6f49560d9cfb
+
 ---
 #### Tierra y Lua
+
 https://github.com/user-attachments/assets/1f7691e3-7bd2-4bbe-87f0-7d00b3ef4edc
+
 ---
 ### Venus
 
+https://github.com/user-attachments/assets/885c6598-99ae-4732-b466-5f3a6130aef5
+
+---
+### Mercurio
+
+https://github.com/user-attachments/assets/d05398d2-8a85-4d55-9290-dc5b708e4521
+
+---
+### Marte y Phobos
+
+https://github.com/user-attachments/assets/12be8740-3a87-46a0-b187-53403f682a99
+
+---
+### Jupiter
+
+https://github.com/user-attachments/assets/4ad401c6-6e5f-4698-8014-61b6ef0a9b1d
+
+---
+### Saturno
+
+https://github.com/user-attachments/assets/8212a97e-7b21-4873-b120-04f0ae0e2fde
+
+---
+### Urano
+
+https://github.com/user-attachments/assets/5d4599c1-809b-4ee2-a4ca-f15907517a08
+
+---
+### Neptuno, Plutón, Eris y Sedna
+
+https://github.com/user-attachments/assets/231716d5-f172-4bdc-af6d-40747c66ea19
 
 
+# Sistema Solar Completo
 
+https://github.com/user-attachments/assets/09978c88-d6aa-47f5-8041-b3acb7318533
+
+---
 ### Características
 
 - Representación del Sol y varios planetas, cada uno con su propio conjunto de shaders y efectos visuales.
@@ -46,7 +85,7 @@ Asegúrate de tener Rust y Cargo instalados en tu sistema. Puedes instalarlos de
 
 1. Clona este repositorio:
    ```bash
-   git clone [https://github.com/tu_usuario/sistema-solar-rust.git](https://github.com/XavierLopez25/Lab4_Graficas)
+   git clone https://github.com/XavierLopez25/Lab4_Graficas.git
    cd Lab4_Graficas
    ```
 
@@ -75,9 +114,4 @@ Asegúrate de tener Rust y Cargo instalados en tu sistema. Puedes instalarlos de
 - `nalgebra-glm`: Para cálculos matemáticos de gráficos.
 - `rand`: Utilizado en la generación de algunas características aleatorias.
 - `tobj`: Para cargar modelos 3D.
-
-
-Puedes ver videos de cada planeta en acción en la sección de [Videos de Planetas](#) en este repositorio.
-```
-
-Este `README` proporciona una visión general del proyecto, instrucciones de instalación y uso, controles para interactuar con la simulación, detalles técnicos sobre la implementación y las librerías usadas, así como una sección dedicada a videos de los planetas, que deberás actualizar con enlaces reales a los videos si los agregas posteriormente.
+  
